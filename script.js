@@ -6,4 +6,10 @@ if (button) {
     });
     } else {
 console.error("Button with ID 'button' not found.");
+
+    if (window.max) {
+        console.log("This webpage is loaded in Max, from a jweb object");
+    } else {
+        console.log("This webpage is not loaded in Max.")
+    }
 }
