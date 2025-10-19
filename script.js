@@ -1,45 +1,98 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const button = document.getElementById("button");
-  const micButton = document.getElementById("micButton");
+(() => {
+  let watchId = null;
+  let lastPos = null;
+  let intervalId = null;
+  let origin = null;
 
-  // First button — logs + sends to Max
-  if (button) {
-    button.addEventListener("click", () => {
-      console.log("Button clicked!");
-      if (window.max && window.max.outlet) {
-        window.max.outlet("Works!");
-      } else {
-        console.warn("window.max not found; running outside Max environment.");
-      }
-    });
-  } else {
-    console.error("Button with ID 'button' not found.");
+  const dot  = document.getElementById("dot");
+  const info = document.getElementById("info");
+
+  function updateDot(pos) {
+    if (!origin)
+      origin = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+
+    const dx = (pos.coords.longitude - origin.lon) * 100000;
+    const dy = (pos.coords.latitude  - origin.lat) * -100000;
+
+    const map = document.getElementById("map");
+    const centerX = map.clientWidth / 2;
+    const centerY = map.clientHeight / 2;
+
+    dot.style.left = `${centerX + dx}px`;
+    dot.style.top  = `${centerY + dy}px`;
+
+    info.textContent =
+      `Lat: ${pos.coords.latitude.toFixed(5)} ` +
+      `Lon: ${pos.coords.longitude.toFixed(5)} ` +
+      `Acc: ±${pos.coords.accuracy.toFixed(1)} m`;
   }
 
-  // Second button — activates microphone
-  if (micButton) {
-    micButton.addEventListener("click", async () => {
-      console.log("Requesting microphone access...");
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log("Microphone access granted.");
-        
-        // Optional: connect to an audio context
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(stream);
-        source.connect(audioContext.destination); // direct passthrough (optional)
-
-        if (window.max && window.max.outlet) {
-          window.max.outlet("Microphone started");
-        }
-      } catch (err) {
-        console.error("Microphone access denied:", err);
-        if (window.max && window.max.outlet) {
-          window.max.outlet("Microphone access denied");
-        }
+  function buildPayload(pos) {
+    return {
+      type: "geolocation",
+      method: "poll",
+      timestamp: new Date(pos.timestamp).toISOString(),
+      coords: {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        altitude: pos.coords.altitude,
+        accuracy: pos.coords.accuracy,
+        heading: pos.coords.heading,
+        speed: pos.coords.speed
       }
-    });
-  } else {
-    console.error("Button with ID 'micButton' not found.");
+    };
   }
-});
+
+  function onSuccess(pos) {
+    lastPos = pos;
+    updateDot(pos);
+  }
+
+  function onError(err) {
+    console.warn(`[geo] ${err.message}`);
+  }
+
+  async function start() {
+    if (watchId !== null) return;
+
+    if (!("geolocation" in navigator)) {
+      console.error("[geo] not supported");
+      return;
+    }
+
+    console.info("[geo] starting continuous watch…");
+    info.textContent = "Tracking active — waiting for fix…";
+
+    watchId = navigator.geolocation.watchPosition(onSuccess, onError, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 15000
+    });
+
+    // Independent 5 s ticker
+    intervalId = setInterval(() => {
+      if (lastPos) {
+        const payload = buildPayload(lastPos);
+        console.log(JSON.stringify(payload));   // send this over DataChannel
+      }
+    }, 5000);
+  }
+
+  function stop() {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+    if (intervalId !== null) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+    info.textContent = "Tracking stopped.";
+    console.info("[geo] stopped");
+  }
+
+  window.GeoWatcher = { start, stop };
+})();
+
+document.getElementById("button_start")
+  .addEventListener("click", () => GeoWatcher.start());
