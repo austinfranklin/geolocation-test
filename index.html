@@ -1,66 +1,115 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Geolocation Tracker</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      background: #f5f5f5;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      height: 100vh;
-      margin: 0;
-      padding-top: 20px;
-    }
-    #button_start {
-      padding: 10px 20px;
-      font-size: 16px;
-      border-radius: 8px;
-      border: none;
-      background: #0074d9;
-      color: white;
-      cursor: pointer;
-      margin-bottom: 20px;
-    }
-    #map {
-      position: relative;
-      width: 90vw;
-      max-width: 600px;
-      height: 400px;
-      background: white;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    #dot {
-      position: absolute;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: red;
-      transform: translate(-50%, -50%);
-      top: 50%;
-      left: 50%;
-    }
-    #info {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #333;
-      text-align: center;
-    }
-  </style>
+    <meta charset="utf-8">
+    <title>Map Overlay</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { 
+            height: 100vh; 
+            width: 100vw;
+            cursor: crosshair;
+        }
+        .coord-display {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+            font-family: monospace;
+        }
+    </style>
 </head>
 <body>
-  <button id="button_start">Start Tracking</button>
-  <div id="map">
-    <div id="dot"></div>
-  </div>
-  <div id="info">Press “Start Tracking” to begin</div>
+    <div class="coord-display" id="coords">Lat: --, Lng: --</div>
+    <div id="map"></div>
 
-  <script src="script.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map with your current center coordinates
+        let map = L.map('map').setView([59.618610, 16.540694], 15);
+        
+        // Add OpenStreetMap tiles (free, no API key needed)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Store bubbles for visualization
+        let bubbles = [];
+        
+        // Function to update map center and scale from Max
+        function updateMap(centerLat, centerLng, scale) {
+            // Convert your scale to Leaflet zoom level (approximate)
+            let zoom = Math.min(18, Math.max(10, Math.round(14 - Math.log(scale/1000))));
+            map.setView([centerLat, centerLng], zoom);
+        }
+        
+        // Function to add/update bubbles from Max
+        function updateBubbles(bubbleData) {
+            // Clear existing bubbles
+            bubbles.forEach(bubble => map.removeLayer(bubble));
+            bubbles = [];
+            
+            // Add new bubbles
+            bubbleData.forEach(bubble => {
+                // Convert relative coords (-1 to +1) to geographic
+                const bounds = map.getBounds();
+                const latRange = bounds.getNorth() - bounds.getSouth();
+                const lngRange = bounds.getEast() - bounds.getWest();
+                
+                const absLat = centerLat - (bubble.y * latRange / 2);
+                const absLng = centerLng + (bubble.x * lngRange / 2);
+                
+                const circle = L.circle([absLat, absLng], {
+                    color: bubble.active ? 'blue' : 'red',
+                    fillColor: bubble.active ? '#3388ff' : '#ff3333',
+                    fillOpacity: 0.3,
+                    radius: bubble.radius * 100 // meters
+                }).addTo(map);
+                
+                // Add popup with bubble info
+                circle.bindPopup(`
+                    <b>${bubble.name}</b><br>
+                    Active: ${bubble.active}<br>
+                    Radius: ${bubble.radius}
+                `);
+                
+                bubbles.push(circle);
+            });
+        }
+        
+        // Send coordinates back to Max when clicked
+        map.on('click', function(e) {
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+            
+            // Update display
+            document.getElementById('coords').textContent = 
+                `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+            
+            // Send to Max (jweb will handle this)
+            if (window.max) {
+                window.max.outlet("map_click", lat, lng);
+            }
+        });
+        
+        // Handle messages from Max
+        if (window.max) {
+            window.max.bind("update_center", (lat, lng, scale) => {
+                updateMap(parseFloat(lat), parseFloat(lng), parseFloat(scale));
+            });
+            
+            window.max.bind("update_bubbles", (bubbleJSON) => {
+                const bubbleData = JSON.parse(bubbleJSON);
+                updateBubbles(bubbleData);
+            });
+        }
+        
+        // Initial setup
+        updateMap(59.618610, 16.540694, 350000);
+    </script>
 </body>
 </html>
