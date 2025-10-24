@@ -2,114 +2,176 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Map Overlay</title>
+    <title>Map Display</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: Arial, sans-serif;
+        }
         #map { 
             height: 100vh; 
             width: 100vw;
-            cursor: crosshair;
         }
-        .coord-display {
+        .controls {
             position: absolute;
             top: 10px;
             left: 10px;
             background: white;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             z-index: 1000;
+            min-width: 300px;
+        }
+        .control-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #007cba;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        .coord-display {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
             font-family: monospace;
+            font-size: 12px;
         }
     </style>
 </head>
 <body>
-    <div class="coord-display" id="coords">Lat: --, Lng: --</div>
+    <div class="controls">
+        <div class="control-group">
+            <label for="centerLat">Center Latitude:</label>
+            <input type="number" id="centerLat" value="59.618610" step="0.000001">
+        </div>
+        <div class="control-group">
+            <label for="centerLng">Center Longitude:</label>
+            <input type="number" id="centerLng" value="16.540694" step="0.000001">
+        </div>
+        <div class="control-group">
+            <label for="scale">Scale:</label>
+            <input type="number" id="scale" value="350000" step="1000">
+        </div>
+        <button onclick="updateMap()">Update Map</button>
+        
+        <div class="coord-display" id="coords">
+            Bounds: Calculating...<br>
+            Zoom: --
+        </div>
+    </div>
+    
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Initialize map with your current center coordinates
+        // Initialize map
         let map = L.map('map').setView([59.618610, 16.540694], 15);
         
-        // Add OpenStreetMap tiles (free, no API key needed)
+        // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
         }).addTo(map);
 
-        // Store bubbles for visualization
-        let bubbles = [];
-        
-        // Function to update map center and scale from Max
-        function updateMap(centerLat, centerLng, scale) {
-            // Convert your scale to Leaflet zoom level (approximate)
-            let zoom = Math.min(18, Math.max(10, Math.round(14 - Math.log(scale/1000))));
+        // Function to calculate bounds from center and scale (same as your v8ui script)
+        function calculateBounds(centerLat, centerLng, scale, mapWidth = 800, mapHeight = 600) {
+            // Convert scale to geographic bounds (same calculation as your geoToVirtual)
+            const centerX = mapWidth / 2;
+            const centerY = mapHeight / 2;
+            
+            // Calculate bounds in degrees (approximate conversion)
+            // This matches your v8ui coordinate calculations
+            const degreesPerPixelLat = 1 / (111320 * Math.cos(centerLat * Math.PI / 180)); // meters to degrees at this latitude
+            const degreesPerPixelLng = 1 / 111320; // meters to degrees at equator
+            
+            const westLng = centerLng - (centerX / scale) * degreesPerPixelLng;
+            const eastLng = centerLng + (centerX / scale) * degreesPerPixelLng;
+            const southLat = centerLat - (centerY / scale) * degreesPerPixelLat;
+            const northLat = centerLat + (centerY / scale) * degreesPerPixelLat;
+            
+            return [[southLat, westLng], [northLat, eastLng]];
+        }
+
+        // Function to convert scale to zoom level (approximate)
+        function scaleToZoom(scale) {
+            // Empirical conversion based on your typical scale values
+            if (scale >= 1000000) return 10;
+            if (scale >= 500000) return 11;
+            if (scale >= 250000) return 12;
+            if (scale >= 100000) return 13;
+            if (scale >= 50000) return 14;
+            if (scale >= 25000) return 15;
+            if (scale >= 10000) return 16;
+            return 17;
+        }
+
+        // Main update function
+        function updateMap() {
+            const centerLat = parseFloat(document.getElementById('centerLat').value);
+            const centerLng = parseFloat(document.getElementById('centerLng').value);
+            const scale = parseFloat(document.getElementById('scale').value);
+            
+            // Set center and zoom
+            const zoom = scaleToZoom(scale);
             map.setView([centerLat, centerLng], zoom);
+            
+            // Calculate and display bounds (same as your v8ui)
+            const bounds = calculateBounds(centerLat, centerLng, scale);
+            document.getElementById('coords').innerHTML = 
+                `West: ${bounds[0][1].toFixed(6)}<br>
+                 East: ${bounds[1][1].toFixed(6)}<br>
+                 South: ${bounds[0][0].toFixed(6)}<br>
+                 North: ${bounds[1][0].toFixed(6)}<br>
+                 Zoom: ${zoom}`;
         }
-        
-        // Function to add/update bubbles from Max
-        function updateBubbles(bubbleData) {
-            // Clear existing bubbles
-            bubbles.forEach(bubble => map.removeLayer(bubble));
-            bubbles = [];
+
+        // Update display when map moves
+        function updateDisplay() {
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            const bounds = map.getBounds();
             
-            // Add new bubbles
-            bubbleData.forEach(bubble => {
-                // Convert relative coords (-1 to +1) to geographic
-                const bounds = map.getBounds();
-                const latRange = bounds.getNorth() - bounds.getSouth();
-                const lngRange = bounds.getEast() - bounds.getWest();
-                
-                const absLat = centerLat - (bubble.y * latRange / 2);
-                const absLng = centerLng + (bubble.x * lngRange / 2);
-                
-                const circle = L.circle([absLat, absLng], {
-                    color: bubble.active ? 'blue' : 'red',
-                    fillColor: bubble.active ? '#3388ff' : '#ff3333',
-                    fillOpacity: 0.3,
-                    radius: bubble.radius * 100 // meters
-                }).addTo(map);
-                
-                // Add popup with bubble info
-                circle.bindPopup(`
-                    <b>${bubble.name}</b><br>
-                    Active: ${bubble.active}<br>
-                    Radius: ${bubble.radius}
-                `);
-                
-                bubbles.push(circle);
-            });
+            document.getElementById('coords').innerHTML = 
+                `West: ${bounds.getWest().toFixed(6)}<br>
+                 East: ${bounds.getEast().toFixed(6)}<br>
+                 South: ${bounds.getSouth().toFixed(6)}<br>
+                 North: ${bounds.getNorth().toFixed(6)}<br>
+                 Zoom: ${zoom}`;
         }
-        
-        // Send coordinates back to Max when clicked
-        map.on('click', function(e) {
-            const lat = e.latlng.lat;
-            const lng = e.latlng.lng;
-            
-            // Update display
-            document.getElementById('coords').textContent = 
-                `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
-            
-            // Send to Max (jweb will handle this)
-            if (window.max) {
-                window.max.outlet("map_click", lat, lng);
-            }
-        });
-        
-        // Handle messages from Max
-        if (window.max) {
-            window.max.bind("update_center", (lat, lng, scale) => {
-                updateMap(parseFloat(lat), parseFloat(lng), parseFloat(scale));
-            });
-            
-            window.max.bind("update_bubbles", (bubbleJSON) => {
-                const bubbleData = JSON.parse(bubbleJSON);
-                updateBubbles(bubbleData);
-            });
-        }
-        
-        // Initial setup
-        updateMap(59.618610, 16.540694, 350000);
+
+        // Event listeners
+        map.on('moveend', updateDisplay);
+        map.on('zoomend', updateDisplay);
+
+        // Initial display
+        updateDisplay();
     </script>
 </body>
 </html>
