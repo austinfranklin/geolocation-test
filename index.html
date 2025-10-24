@@ -11,37 +11,11 @@
         .controls {
             position: absolute; top: 10px; left: 10px; background: white;
             padding: 15px; border-radius: 8px; z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            min-width: 250px;
-        }
-        input, button {
-            width: 100%;
-            padding: 8px;
-            margin: 5px 0;
-            box-sizing: border-box;
-        }
-        button {
-            background: #007cba;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background: #005a87;
         }
     </style>
 </head>
 <body>
-    <div class="controls">
-        <input type="number" id="centerLat" value="59.618610" step="0.000001" placeholder="Latitude">
-        <input type="number" id="centerLng" value="16.540694" step="0.000001" placeholder="Longitude">
-        <input type="number" id="scale" value="350000" step="1000" placeholder="Scale">
-        <button onclick="updateMapFromInputs()">Update Map</button>
-    </div>
-    
     <div id="map"></div>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         let map = L.map('map').setView([59.618610, 16.540694], 15);
@@ -50,12 +24,13 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
+        // SIMPLE SOLUTION: Use Leaflet's fitBounds with calculated bounds
         function updateMap(centerLat, centerLng, scale) {
-            // Get ACTUAL map dimensions (adapts to any window size)
-            const mapSize = map.getSize();
-            const mapWidth = mapSize.x;
-            const mapHeight = mapSize.y;
+            // Calculate bounds that match your v8ui exactly
+            const mapWidth = 800;  // Match your v8ui window size
+            const mapHeight = 600; // Match your v8ui window size
             
+            // Convert scale to geographic bounds (same as your geoToVirtual)
             const degreesPerPixelLng = 1 / scale;
             const degreesPerPixelLat = 1 / scale;
             
@@ -64,47 +39,14 @@
             const southLat = centerLat - (mapHeight / 2) * degreesPerPixelLat;
             const northLat = centerLat + (mapHeight / 2) * degreesPerPixelLat;
             
+            // Set the map to show exactly the same area as v8ui
             const bounds = [[southLat, westLng], [northLat, eastLng]];
             map.fitBounds(bounds);
+            
+            document.getElementById('scaleDisplay').textContent = scale;
         }
 
-        function updateMapFromInputs() {
-            const centerLat = parseFloat(document.getElementById('centerLat').value);
-            const centerLng = parseFloat(document.getElementById('centerLng').value);
-            const scale = parseFloat(document.getElementById('scale').value);
-            updateMap(centerLat, centerLng, scale);
-        }
-
-        // Handle messages from Max
-        if (window.max) {
-            window.max.bind("setCenter", (lat, lng, scale) => {
-                document.getElementById('centerLat').value = parseFloat(lat);
-                document.getElementById('centerLng').value = parseFloat(lng);
-                document.getElementById('scale').value = parseFloat(scale);
-                updateMap(parseFloat(lat), parseFloat(lng), parseFloat(scale));
-            });
-        }
-
-        // Update v8ui script to also use dynamic sizing
-        function sendWindowSizeToMax() {
-            if (window.max) {
-                const mapSize = map.getSize();
-                window.max.outlet("window_size", mapSize.x, mapSize.y);
-            }
-        }
-
-        // Handle window resizing
-        map.whenReady(function() {
-            sendWindowSizeToMax();
-        });
-
-        map.on('resize', function() {
-            sendWindowSizeToMax();
-            // Re-apply current view with new dimensions
-            updateMapFromInputs();
-        });
-
-        // Initial setup
+        // Initial setup with your current values
         updateMap(59.618610, 16.540694, 350000);
     </script>
 </body>
