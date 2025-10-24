@@ -16,16 +16,15 @@
     <script>
         let map = L.map('map').setView([59.618610, 16.540694], 15);
         
-        // Dark minimal style
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap, © CartoDB',
-            maxZoom: 20
+        L.tileLayer('https://tiles.wmflabs.org/bw-mapnik/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18
         }).addTo(map);
 
         function updateMap(centerLat, centerLng, scale) {
             // Calculate bounds that match your v8ui exactly
             const mapWidth = 800;  // Match your v8ui window size
-            const mapHeight = 600; // Match your v8ui window size
+            const mapHeight = 800; // Match your v8ui window size
             
             // Convert scale to geographic bounds (same as your geoToVirtual)
             const degreesPerPixelLng = 1 / scale;
