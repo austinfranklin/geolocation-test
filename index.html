@@ -8,7 +8,6 @@
     <style>
         body { margin: 0; padding: 0; }
         #map { height: 100vh; width: 100vw; }
-        .custom-map { filter: hue-rotate(180deg) saturate(200%) brightness(0.8); }
     </style>
 </head>
 <body>
@@ -17,15 +16,15 @@
     <script>
         let map = L.map('map').setView([59.618610, 16.540694], 15);
         
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            className: 'custom-map'  // Add this for custom styling
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+          attribution: '© OpenStreetMap, © CartoDB',
+          maxZoom: 20
         }).addTo(map);
 
         function updateMap(centerLat, centerLng, scale) {
             // Calculate bounds that match your v8ui exactly
-            const mapWidth = 800;  // Match your v8ui window size
-            const mapHeight = 800; // Match your v8ui window size
+            const mapWidth = 600;  // Match your v8ui window size
+            const mapHeight = 600; // Match your v8ui window size
             
             // Convert scale to geographic bounds (same as your geoToVirtual)
             const degreesPerPixelLng = 1 / scale;
