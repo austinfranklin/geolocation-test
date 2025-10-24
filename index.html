@@ -8,10 +8,6 @@
     <style>
         body { margin: 0; padding: 0; }
         #map { height: 100vh; width: 100vw; }
-        .controls {
-            position: absolute; top: 10px; left: 10px; background: white;
-            padding: 15px; border-radius: 8px; z-index: 1000;
-        }
     </style>
 </head>
 <body>
@@ -24,7 +20,6 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // SIMPLE SOLUTION: Use Leaflet's fitBounds with calculated bounds
         function updateMap(centerLat, centerLng, scale) {
             // Calculate bounds that match your v8ui exactly
             const mapWidth = 800;  // Match your v8ui window size
@@ -42,8 +37,36 @@
             // Set the map to show exactly the same area as v8ui
             const bounds = [[southLat, westLng], [northLat, eastLng]];
             map.fitBounds(bounds);
+        }
+
+        // Handle messages from Max/jweb
+        if (window.max) {
+            // Handle setCenter message: setCenter lat lng scale
+            window.max.bindInlet("setCenter", (lat, lng, scale) => {
+                updateMap(parseFloat(lat), parseFloat(lng), parseFloat(scale));
+            });
             
-            document.getElementById('scaleDisplay').textContent = scale;
+            // Handle individual parameter changes
+            window.max.bindInlet("setLat", (lat) => {
+                const center = map.getCenter();
+                updateMap(parseFloat(lat), center.lng, 350000);
+            });
+            
+            window.max.bindInlet("setLng", (lng) => {
+                const center = map.getCenter();
+                updateMap(center.lat, parseFloat(lng), 350000);
+            });
+            
+            window.max.bindInlet("setScale", (scale) => {
+                const center = map.getCenter();
+                updateMap(center.lat, center.lng, parseFloat(scale));
+            });
+            
+            // Handle bang to refresh
+            window.max.bindInlet("bang", () => {
+                const center = map.getCenter();
+                updateMap(center.lat, center.lng, 350000);
+            });
         }
 
         // Initial setup with your current values
